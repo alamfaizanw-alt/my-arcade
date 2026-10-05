@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Star Catcher</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f8fbff;
+      --muted: #a9b7d2;
+      --cyan: #63e6ff;
+      --pink: #ff78c8;
+      --panel: rgba(10, 20, 52, .78);
+      --line: rgba(173, 211, 255, .2);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #070b24;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .game-shell {
+      position: relative;
+      min-height: 100svh;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 75% 18%, rgba(89, 105, 255, .3), transparent 29%),
+        radial-gradient(circle at 18% 84%, rgba(235, 75, 174, .16), transparent 28%),
+        linear-gradient(155deg, #080d2c 0%, #111553 53%, #1a0d3b 100%);
+    }
+
+    .game-shell::before,
+    .game-shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .game-shell::before {
+      opacity: .38;
+      background-image:
+        radial-gradient(circle, #fff 0 1px, transparent 1.5px),
+        radial-gradient(circle, #a9d8ff 0 1px, transparent 1.5px);
+      background-position: 12px 24px, 80px 100px;
+      background-size: 127px 137px, 181px 167px;
+    }
+
+    .game-shell::after {
+      background: linear-gradient(90deg, transparent 0 49.8%, rgba(255, 255, 255, .025) 50%, transparent 50.2%);
+      opacity: .45;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      width: min(1080px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 28px 0 16px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .09);
+      box-shadow: 0 0 26px rgba(99, 230, 255, .24);
+      font-size: 21px;
+    }
+
+    .brand h1 { margin: 0; font-size: clamp(20px, 3vw, 27px); letter-spacing: .04em; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font: 12px/1.2 Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+
+    .stats { display: flex; gap: 10px; }
+
+    .stat {
+      min-width: 104px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(4, 10, 34, .44);
+      text-align: center;
+    }
+
+    .stat-label { display: block; color: var(--muted); font: 10px Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+    .stat-value { display: block; margin-top: 3px; color: var(--cyan); font-size: 22px; line-height: 1; }
+    #misses { color: var(--pink); }
+
+    .stage {
+      position: relative;
+      width: min(1080px, calc(100% - 36px));
+      height: min(71svh, 680px);
+      min-height: 400px;
+      margin: 0 auto;
+      border: 1px solid rgba(184, 213, 255, .24);
+      border-radius: 20px;
+      overflow: hidden;
+      background: rgba(3, 7, 29, .29);
+      box-shadow: 0 26px 80px rgba(0, 0, 0, .3), inset 0 0 60px rgba(92, 97, 255, .08);
+    }
+
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .stage-copy {
+      position: absolute;
+      top: 22px;
+      left: 24px;
+      pointer-events: none;
+      color: rgba(231, 240, 255, .74);
+      font: 11px Arial, sans-serif;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(5, 8, 30, .58);
+      backdrop-filter: blur(8px);
+      transition: opacity .25s ease, visibility .25s ease;
+    }
+
+    .overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .dialog {
+      width: min(430px, 100%);
+      padding: 34px 30px 30px;
+      border: 1px solid rgba(192, 220, 255, .3);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 24px 90px rgba(0, 0, 0, .38);
+      text-align: center;
+    }
+
+    .dialog-kicker { margin: 0 0 9px; color: var(--cyan); font: 11px Arial, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
+    .dialog h2 { margin: 0; font-size: clamp(34px, 7vw, 54px); line-height: .98; }
+    .dialog p { margin: 17px auto 24px; max-width: 32ch; color: #c1cce3; font: 15px/1.55 Arial, sans-serif; }
+
+    .primary-button {
+      border: 0;
+      border-radius: 9px;
+      padding: 13px 23px;
+      color: #07102f;
+      background: linear-gradient(100deg, #70eaff, #b3f5ff);
+      box-shadow: 0 8px 24px rgba(99, 230, 255, .24);
+      cursor: pointer;
+      font: 700 13px Arial, sans-serif;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+
+    .primary-button:hover { transform: translateY(-2px); box-shadow: 0 11px 28px rgba(99, 230, 255, .36); }
+    .primary-button:active { transform: translateY(0); }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 13px;
+      width: min(1080px, calc(100% - 36px));
+      margin: 14px auto 0;
+      color: var(--muted);
+      font: 12px Arial, sans-serif;
+      letter-spacing: .03em;
+    }
+
+    .key { display: inline-grid; place-items: center; min-width: 30px; height: 26px; margin: 0 2px; padding: 0 7px; border: 1px solid rgba(205, 227, 255, .27); border-radius: 5px; color: #e6f4ff; background: rgba(255, 255, 255, .09); font-size: 12px; }
+
+    .touch-controls { display: none; gap: 12px; }
+    .touch-button { width: 68px; height: 42px; border: 1px solid var(--line); border-radius: 9px; color: #e8f6ff; background: rgba(255,255,255,.1); font-size: 18px; touch-action: manipulation; }
+
+    @media (max-width: 600px) {
+      .topbar { align-items: flex-start; padding-top: 18px; }
+      .brand p { display: none; }
+      .brand-mark { width: 36px; height: 36px; }
+      .stats { gap: 6px; }
+      .stat { min-width: 69px; padding: 8px 6px; }
+      .stat-value { font-size: 19px; }
+      .stage { width: calc(100% - 20px); height: calc(100svh - 164px); min-height: 400px; border-radius: 15px; }
+      .controls { width: calc(100% - 20px); margin-top: 11px; }
+      .keyboard-hint { display: none; }
+      .touch-controls { display: flex; }
+      .dialog { padding: 29px 21px 25px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">✦</div>
+        <div>
+          <h1>Star Catcher</h1>
+          <p>Make a wish. Catch a constellation.</p>
+        </div>
+      </div>
+      <div class="stats" aria-label="Game score">
+        <div class="stat"><span class="stat-label">Caught</span><strong class="stat-value" id="score">0 / 10</strong></div>
+        <div class="stat"><span class="stat-label">Missed</span><strong class="stat-value" id="misses">0 / 3</strong></div>
+      </div>
+    </header>
+
+    <section class="stage" aria-label="Star Catcher game board">
+      <canvas id="gameCanvas"></canvas>
+      <div class="stage-copy">Night shift // sector 07</div>
+      <div class="overlay" id="overlay">
+        <div class="dialog">
+          <p class="dialog-kicker" id="dialogKicker">A little cosmic practice</p>
+          <h2 id="dialogTitle">Catch the stars</h2>
+          <p id="dialogText">Move the basket left and right. Catch 10 falling stars to light up the sky, but miss only 3.</p>
+          <button class="primary-button" id="startButton" type="button">Start game</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="controls">
+      <span class="keyboard-hint"><span class="key">←</span><span class="key">→</span> to move</span>
+      <span class="touch-controls"><button class="touch-button" id="leftButton" type="button" aria-label="Move left">←</button><button class="touch-button" id="rightButton" type="button" aria-label="Move right">→</button></span>
+    </footer>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const context = canvas.getContext('2d');
+    const stage = document.querySelector('.stage');
+    const scoreElement = document.getElementById('score');
+    const missesElement = document.getElementById('misses');
+    const overlay = document.getElementById('overlay');
+    const dialogKicker = document.getElementById('dialogKicker');
+    const dialogTitle = document.getElementById('dialogTitle');
+    const dialogText = document.getElementById('dialogText');
+    const startButton = document.getElementById('startButton');
+
+    let width = 0;
+    let height = 0;
+    let animationFrame;
+    let lastTime = 0;
+    let spawnTimer = 0;
+    let score = 0;
+    let misses = 0;
+    let gameState = 'ready';
+    const keys = { left: false, right: false };
+    const stars = [];
+    const dust = [];
+    const basket = { x: 0, y: 0, width: 112, height: 32, speed: 430 };
+
+    function resizeCanvas() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = stage.clientWidth;
+      height = stage.clientHeight;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      basket.y = height - 50;
+      basket.x = Math.max(0, Math.min(basket.x, width - basket.width));
+      dust.length = 0;
+      for (let index = 0; index < 70; index += 1) {
+        dust.push({ x: Math.random() * width, y: Math.random() * height, radius: Math.random() * 1.3 + .25, alpha: Math.random() * .45 + .12 });
+      }
+      draw();
+    }
+
+    function resetGame() {
+      score = 0;
+      misses = 0;
+      stars.length = 0;
+      spawnTimer = 0;
+      basket.x = (width - basket.width) / 2;
+      gameState = 'playing';
+      overlay.classList.add('hidden');
+      updateHud();
+      lastTime = performance.now();
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(loop);
+    }
+
+    function updateHud() {
+      scoreElement.textContent = score + ' / 10';
+      missesElement.textContent = misses + ' / 3';
+    }
+
+    function spawnStar() {
+      const radius = 10 + Math.random() * 6;
+      stars.push({
+        x: radius + Math.random() * (width - radius * 2),
+        y: -radius - 10,
+        radius,
+        speed: 120 + Math.random() * 90 + score * 5,
+        rotation: Math.random() * Math.PI,
+        spin: (Math.random() - .5) * 2.2
+      });
+    }
+
+    function loop(time) {
+      if (gameState !== 'playing') return;
+      const delta = Math.min((time - lastTime) / 1000, .04);
+      lastTime = time;
+      update(delta);
+      draw();
+      animationFrame = requestAnimationFrame(loop);
+    }
+
+    function update(delta) {
+      if (keys.left) basket.x -= basket.speed * delta;
+      if (keys.right) basket.x += basket.speed * delta;
+      basket.x = Math.max(0, Math.min(width - basket.width, basket.x));
+
+      spawnTimer += delta;
+      const spawnDelay = Math.max(.38, .78 - score * .018);
+      if (spawnTimer >= spawnDelay) {
+        spawnTimer = 0;
+        spawnStar();
+      }
+
+      for (let index = stars.length - 1; index >= 0; index -= 1) {
+        const star = stars[index];
+        star.y += star.speed * delta;
+        star.rotation += star.spin * delta;
+        const caught = star.y + star.radius >= basket.y && star.y - star.radius <= basket.y + basket.height && star.x >= basket.x - 5 && star.x <= basket.x + basket.width + 5;
+        if (caught) {
+          stars.splice(index, 1);
+          score += 1;
+          updateHud();
+          if (score >= 10) endGame(true);
+        } else if (star.y - star.radius > height) {
+          stars.splice(index, 1);
+          misses += 1;
+          updateHud();
+          if (misses >= 3) endGame(false);
+        }
+      }
+    }
+
+    function draw() {
+      context.clearRect(0, 0, width, height);
+      drawDust();
+      stars.forEach(drawStar);
+      drawBasket();
+    }
+
+    function drawDust() {
+      dust.forEach((particle) => {
+        context.globalAlpha = particle.alpha;
+        context.fillStyle = '#d9e8ff';
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+        context.fill();
+      });
+      context.globalAlpha = 1;
+    }
+
+    function drawStar(star) {
+      context.save();
+      context.translate(star.x, star.y);
+      context.rotate(star.rotation);
+      context.shadowColor = '#ffd86b';
+      context.shadowBlur = 20;
+      const gradient = context.createRadialGradient(0, -2, 1, 0, 0, star.radius);
+      gradient.addColorStop(0, '#fffbe0');
+      gradient.addColorStop(.42, '#ffe58d');
+      gradient.addColorStop(1, '#f6a638');
+      context.fillStyle = gradient;
+      context.beginPath();
+      for (let point = 0; point < 10; point += 1) {
+        const angle = -Math.PI / 2 + point * Math.PI / 5;
+        const distance = point % 2 === 0 ? star.radius : star.radius * .42;
+        const x = Math.cos(angle) * distance;
+        const y = Math.sin(angle) * distance;
+        if (point === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      }
+      context.closePath();
+      context.fill();
+      context.restore();
+    }
+
+    function drawBasket() {
+      const x = basket.x;
+      const y = basket.y;
+      context.save();
+      context.shadowColor = '#63e6ff';
+      context.shadowBlur = 22;
+      const basketGradient = context.createLinearGradient(x, y, x, y + basket.height);
+      basketGradient.addColorStop(0, '#a9f5ff');
+      basketGradient.addColorStop(.22, '#4ac9e7');
+      basketGradient.addColorStop(1, '#256aaf');
+      context.fillStyle = basketGradient;
+      context.beginPath();
+      context.moveTo(x - 3, y);
+      context.lineTo(x + basket.width + 3, y);
+      context.lineTo(x + basket.width - 10, y + basket.height);
+      context.lineTo(x + 10, y + basket.height);
+      context.closePath();
+      context.fill();
+      context.shadowBlur = 0;
+      context.strokeStyle = 'rgba(231, 253, 255, .85)';
+      context.lineWidth = 2;
+      context.stroke();
+      context.fillStyle = 'rgba(9, 42, 103, .62)';
+      context.fillRect(x + 10, y + 9, basket.width - 20, 4);
+      context.restore();
+    }
+
+    function endGame(won) {
+      gameState = won ? 'won' : 'lost';
+      cancelAnimationFrame(animationFrame);
+      dialogKicker.textContent = won ? 'Constellation complete' : 'The night got away';
+      dialogTitle.textContent = won ? 'You caught them all' : 'Three stars missed';
+      dialogText.textContent = won ? 'The sky is glowing because of you. Ready for another round?' : 'The basket needs a steadier hand. Give it another try?';
+      startButton.textContent = 'Play again';
+      overlay.classList.remove('hidden');
+    }
+
+    function setKey(direction, value) {
+      keys[direction] = value;
+    }
+
+    function bindHoldButton(button, direction) {
+      button.addEventListener('pointerdown', () => setKey(direction, true));
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach((eventName) => button.addEventListener(eventName, () => setKey(direction, false)));
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        setKey(event.key === 'ArrowLeft' ? 'left' : 'right', true);
+      }
+    });
+    window.addEventListener('keyup', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') setKey(event.key === 'ArrowLeft' ? 'left' : 'right', false);
+    });
+    startButton.addEventListener('click', resetGame);
+    bindHoldButton(document.getElementById('leftButton'), 'left');
+    bindHoldButton(document.getElementById('rightButton'), 'right');
+
+    resizeCanvas();
+  </script>
+</body>
+</html>
